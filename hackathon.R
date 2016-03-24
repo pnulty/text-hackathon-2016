@@ -9,6 +9,7 @@ load(url("http://www.kenbenoit.net/files/presDebateCorpus2016seg.RData"))
 # put data in dataframe too
 presDebateDf <- cbind(speech = texts(presDebateCorpus2016seg), docvars(presDebateCorpus2016seg), stringsAsFactors = FALSE)
 
+# additional custom stopwords
 extra <- c('going', 'said', 'need', 'know', 'say', 'many', 'now', 'will', 'actually', 'want', 'like')
 
 
@@ -61,7 +62,7 @@ wordcloud::comparison.cloud(t(demMat), title.size=1.3, random.order=FALSE, rot.p
 # republicans
 
 repCorpus <- subset(presDebateCorpus2016seg, tag %in% c('TRUMP', 'RUBIO', 'CRUZ', 'BUSH'))
-repMat <- dfm(repCorpus, groups = 'tag') %>% 
+repMat <- dfm(repCorpus, ngrams=c(1,2),groups = 'tag') %>% 
     removeFeatures(c(stopwords('english'), extra)) %>% trim(minCount = 5) %>% as.matrix
 wordcloud::comparison.cloud(t(repMat), title.size=1.3, random.order=FALSE, rot.per = 0, max.words = 200)
 
@@ -116,6 +117,49 @@ nd1[is.nan(nd1)] = 0
 predict(eModel, nd1, s = "lambda.min", type = "response")
 
 save(eModel, file='trumpModel.RData')
+
+#######
+# models for each of main candidates vs. others
+#######
+
+mainCorpus <- subset(presDebateCorpus2016seg, tag %in% c('SANDERS', 'CLINTON', 'TRUMP', 'RUBIO'))
+
+#remove very short utterances
+mainDf <- cbind(speech = texts(mainCorpus), docvars(mainCorpus), stringsAsFactors = FALSE)
+mainDf <- filter(mainDf, nchar(speech) > 50)
+
+
+mainDfm <- dfm(mainDf$speech, ngrams=c(1,2)) %>% 
+    removeFeatures(c(stopwords('english'), extra)) %>% trim(minCount = 5)
+mainMat <- as.matrix(mainDfm)
+#wordcloud::comparison.cloud(t(repMat), title.size=1.3, random.order=FALSE, rot.per = 0, max.words = 200)
+
+trueClass <- as.factor(mainDf$tag)
+dim(mainMat)
+length(trueClass)
+table(trueClass)
+eModelMain <- cv.glmnet(mainMat, y=trueClass,  family = 'multinomial', alpha=0.04, type.measure='class', standardize=TRUE)
+plot(eModelMain)
+
+min(eModelMain$cvm)
+
+# cmat <- as.matrix(coef(eModelMain, s = "lambda.min"))
+# coes <- data.frame(estimate=cmat[,1], words=row.names(cmat) ) %>% arrange(estimate)
+# coDict<- data.frame(word=coes$words, co=coes[1])  %>% filter(estimate !=0) %>% filter(word!='(Intercept)')
+# coDict$one<- ifelse(coDict$estimate > 0, coDict$estimate, 0)
+# coDict$zero <- ifelse(coDict$estimate < 0, coDict$estimate, 0)
+# wct <- data.frame(Trump=coDict$one, Other=coDict$zero)
+# rownames(wct) <- coDict$word
+# wordcloud::comparison.cloud((as.matrix(wct)),title.size=1.5, random.order=FALSE, rot.per=0, max.words=200)
+
+
+# predict new text
+nt <- "Donald is a candidate. Obama knows what he is doing."
+#nt <- "I believe that American families have a right to hard-working immigrants. "
+nd1 <- dfm(nt, keptFeatures = mainDfm, ngrams=c(1,2)) %>% removeFeatures(c(stopwords('english'), extra)) %>% as.matrix
+nd1[is.nan(nd1)] = 0
+predict(eModelMain, nd1, s = "lambda.min", type = "response")
+
 
 #############
 # shiny app

@@ -4,6 +4,8 @@ shinyUI(pageWithSidebar(
         textInput("speech", "Speech")
     ),
     mainPanel(
-        verbatimTextOutput("nText")
+        plotOutput("trumpBar")  
     )
 ))
+
+
