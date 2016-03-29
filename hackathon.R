@@ -7,20 +7,23 @@ require(glmnet)
 load(url("http://www.kenbenoit.net/files/presDebateCorpus2016seg.RData"))
 
 # put data in dataframe too
-presDebateDf <- cbind(speech = texts(presDebateCorpus2016seg), docvars(presDebateCorpus2016seg), stringsAsFactors = FALSE)
+presDebateDf <- cbind(speech = texts(presDebateCorpus2016seg), docvars(presDebateCorpus2016seg),
+                      stringsAsFactors = FALSE)
 
 # additional custom stopwords
-extra <- c('going', 'said', 'need', 'know', 'say', 'many', 'now', 'will', 'actually', 'want', 'like')
-
+extra <- c('going', 'said', 'need', 'know', 'say', 'many', 'now', 'will', 'actually', 'want', 'like',
+           'mean', 'well', 'can')
 
 ####
-#0: PCA
+# 0: Correspondence analysis
+#    Shows document positions and comparison cloud of word positions in 2D correspondence analysis
 #
 ####
 require(ca)
 pcaCorpus <- subset(presDebateCorpus2016seg, tag %in% c('SANDERS', 'CLINTON', 'O\'MALLEY', 'TRUMP', 'RUBIO', 'CRUZ', 'BUSH'))
 pcaDfm <- dfm(pcaCorpus, groups = 'tag') %>% removeFeatures(c(stopwords('english'), extra)) %>%
     trim(minCount = 6) %>% weight('logFreq')
+
 
 res <- ca(as.matrix(t(pcaDfm)))
 plot(res, what = c('none', 'active'))
@@ -30,14 +33,14 @@ wordWeights$Republican <- ifelse(wordWeights$Dim1 <0, wordWeights$Dim1, 0)
 wordWeights$Democrat <- ifelse(wordWeights$Dim1 > 0, wordWeights$Dim1, 0)
 wordWeights$Neg <- ifelse(wordWeights$Dim2 < 0, wordWeights$Dim2, 0)
 wordWeights$Pos <- ifelse(wordWeights$Dim2 > 0, wordWeights$Dim2, 0)
-wct <- data.frame(Republican=wordWeights$Republican , Democrat=wordWeights$Democrat)
-rownames(wct) <- rownames(wordWeights)
-wordcloud::comparison.cloud((as.matrix(wct)),title.size=1.5,
+pcaDimOneWeights <- data.frame(Republican=wordWeights$Republican , Democrat=wordWeights$Democrat)
+rownames(pcaDimOneWeights) <- rownames(wordWeights)
+wordcloud::comparison.cloud((as.matrix(pcaDimOneWeights)),title.size=1.5,
                             random.order=FALSE, rot.per=0, scale=c(1,3))
 
-wct <- data.frame(Negative=wordWeights$Neg , Positive=wordWeights$Pos)
-rownames(wct) <- rownames(wordWeights)
-wordcloud::comparison.cloud((as.matrix(wct)),title.size=1.5,
+pcaDimTwoWeights <- data.frame(Negative=wordWeights$Neg , Positive=wordWeights$Pos)
+rownames(pcaDimTwoWeights) <- rownames(wordWeights)
+wordcloud::comparison.cloud((as.matrix(pcaDimTwoWeights)),title.size=1.5,
                             random.order=FALSE, rot.per=0, scale=c(1,2))
 
 ############
@@ -45,6 +48,8 @@ wordcloud::comparison.cloud((as.matrix(wct)),title.size=1.5,
 #
 # The color and size of the word is determined by the difference in rates of occurrence across the
 # two categories (see ?comparison.cloud)
+# 
+# These are just relative word-rates.
 ############
 
 # compare parties
@@ -67,43 +72,55 @@ wordcloud::comparison.cloud(t(repMat), title.size=1.3, random.order=FALSE, rot.p
 
 
 ############
-# 2. Regressions and coefficients
+# 2. Regressions and comparison clouds of coefficients
 #
-# The color and size of the word is determined by the difference in rates of occurrence across the
-# two categories (see ?comparison.cloud)
 ############
 
-
-
 #######
-# models for each of main candidates vs. others
+# predict candidate
 #######
 mainCorpus <- subset(presDebateCorpus2016seg, tag %in% c('SANDERS', 'CLINTON', 'TRUMP', 'RUBIO', 'CRUZ'))
 
-#remove very short utterances
+#remove very short utterances (this also balances number of speeches in each class somewhat)
 mainDf <- cbind(speech = texts(mainCorpus), docvars(mainCorpus), stringsAsFactors = FALSE)
 mainDf <- filter(mainDf, nchar(speech) > 80)
+table(mainDf$tag)
 
+#
+# A unigram, bigram and trigram model removing standard English stopwords + the extra ones at the 
+# start of this file, removing features that occur fewer than five times overall. TF-IDF is not effective
+# because it can't be applied properly to isolated out-of-sample texts.
+#
 mainDfm <- dfm(mainDf$speech, ngrams=c(1,2,3)) %>% 
     removeFeatures(c(stopwords('english'), extra)) %>% trim(minCount = 5)
-mainMat <- as.matrix(mainDfm)
+mainMat <- as.matrix(mainDfm) # 3195 features
 
 trueClass <- as.factor(mainDf$tag)
 dim(mainMat)
 length(trueClass)
 table(trueClass)
-eModelMain <- cv.glmnet(mainMat, y=trueClass,  family = 'multinomial', alpha=0.04, type.measure='class', standardize=TRUE)
+
+# Elastic net model, five-class logistic regression. Closer to ridge than lasso but some parameters will be zero
+eModelMain <- cv.glmnet(mainMat, y=trueClass,  family = 'multinomial', alpha=0.01, type.measure='class', standardize=TRUE)
 plot(eModelMain)
 min(eModelMain$cvm)
+eModelMain$glmnet.fit$dfmat
 
-# predict new text
-nt <- "A conservative movement committed to the cause of free enterprise, the only economic model where everyone can climb without anyone falling. "
-#nt <- "I believe that American families have a right to hard-working immigrants. "
+# Error rates for different values of alpha
+# 0.00 : .226
+# 0.01 : .199
+# 0.05 : .221
+
+# testing new text prediction
+nt <- "A conservative movement committed to the cause of free enterprise, 
+the only economic model where everyone can climb without anyone falling. "
+# nt <- "I believe that American families have a right to hard-working immigrants. "
+# nt <- Senator Sanders is a good man. When I am president I will say more nice things about him.
+
+# need to specify 'keptFeatures' from training Dfm so that dimensions of in-sample and out-of-sample dfm match.
 nd1 <- dfm(nt, keptFeatures = mainDfm, ngrams=c(1,2)) %>% removeFeatures(c(stopwords('english'), extra)) %>% as.matrix
 nd1[is.nan(nd1)] = 0
 predict(eModelMain, nd1, s = "lambda.min", type = "response")
-
-
 
 #######
 # model for Democrat vs Republican
@@ -112,19 +129,30 @@ predict(eModelMain, nd1, s = "lambda.min", type = "response")
 #remove very short utterances (cutting at 80 characters also gives roughly balanced classes.)
 mainDf <- cbind(speech = texts(mainCorpus), docvars(mainCorpus), stringsAsFactors = FALSE)
 mainDf <- filter(mainDf, nchar(speech) > 80)
-table(mainDf$tag)
+table(mainDf$party)
 
+
+#
+# A unigram, bigram and trigram model removing standard English stopwords + the extra ones at the 
+# start of this file, removing features that occur fewer than five times overall. TF-IDF is not effective
+# because it can't be applied properly to isolated out-of-sample texts.
+#
 mainDfm <- dfm(mainDf$speech, ngrams=c(1,2,3)) %>% 
     removeFeatures(c(stopwords('english'), extra)) %>% trim(minCount = 5)
 mainMat <- as.matrix(mainDfm)
 partyClass <- as.factor(mainDf$party)
 dim(mainMat)
-length(trueClass)
-table(trueClass)
-eModelParty <- cv.glmnet(mainMat, y=partyClass,  family = 'binomial', alpha=0.05, type.measure='class', standardize=TRUE)
+length(partyClass)
+table(partyClass)
+# Elastic net model, two-class logistic regression. Closer to ridge than lasso but some parameters will be zero
+eModelParty <- cv.glmnet(mainMat, y=partyClass,  family = 'binomial', alpha=0.01, type.measure='class', standardize=TRUE)
 plot(eModelParty)
 min(eModelParty$cvm)
+eModelParty$glmnet.fit$df
 
+#
+# Comparison cloud coefficients for Dem vs Repub.
+#
 cmat <- as.matrix(coef(eModelParty, s = "lambda.min"))
 coes <- data.frame(estimate=cmat[,1], words=row.names(cmat) ) %>% arrange(estimate)
 wordWeights<- data.frame(word=coes$words, co=coes[1])  %>% filter(estimate !=0) %>% filter(word!='(Intercept)')
@@ -139,38 +167,12 @@ wordcloud::comparison.cloud((as.matrix(wct)),title.size=1.5,
 # predict new text
 nt <- "A conservative movement committed to the cause of free enterprise, the only economic model where everyone can climb without anyone falling. "
 #nt <- "I believe that American families have a right to hard-working immigrants. "
+
+# need to specify 'keptFeatures' from training Dfm so that dimensions of in-sample and out-of-sample dfm match.
 nd1 <- dfm(nt, keptFeatures = mainDfm, ngrams=c(1,2)) %>% removeFeatures(c(stopwords('english'), extra)) %>% as.matrix
 nd1[is.nan(nd1)] = 0
-tmp <- predict(eModelMain, nd1, s = "lambda.min", type = "response")
+tmp <- predict(eModelParty, nd1, s = "lambda.min", type = "response")
 
-
-#######
-# model including Cruz
-#######
-mainCorpus <- subset(presDebateCorpus2016seg, tag %in% c('SANDERS', 'CLINTON', 'TRUMP', 'CRUZ'))
-
-#remove very short utterances
-mainDf <- cbind(speech = texts(mainCorpus), docvars(mainCorpus), stringsAsFactors = FALSE)
-mainDf <- filter(mainDf, nchar(speech) > 80)
-
-mainDfm <- dfm(mainDf$speech, ngrams=c(1,2,3)) %>% 
-    removeFeatures(c(stopwords('english'), extra)) %>% trim(minCount = 5)
-mainMat <- as.matrix(mainDfm)
-
-trueClass <- as.factor(mainDf$tag)
-dim(mainMat)
-length(trueClass)
-table(trueClass)
-eModelMain <- cv.glmnet(mainMat, y=trueClass,  family = 'multinomial', alpha=0.04, type.measure='class', standardize=TRUE)
-plot(eModelMain)
-min(eModelMain$cvm)
-
-# predict new text
-nt <- "A conservative movement committed to the cause of free enterprise, the only economic model where everyone can climb without anyone falling. "
-#nt <- "I believe that American families have a right to hard-working immigrants. "
-nd1 <- dfm(nt, keptFeatures = mainDfm, ngrams=c(1,2)) %>% removeFeatures(c(stopwords('english'), extra)) %>% as.matrix
-nd1[is.nan(nd1)] = 0
-predict(eModelMain, nd1, s = "lambda.min", type = "response")
 
 #############
 # shiny app
@@ -178,62 +180,3 @@ predict(eModelMain, nd1, s = "lambda.min", type = "response")
 setwd("~/Dropbox/hackathon")
 require(shiny)
 runApp('shinyHack')
-
-
-
-########
-# old code here
-#########
-
-#remove very short utterances
-demDf <- cbind(speech = texts(demCorpus), docvars(demCorpus), stringsAsFactors = FALSE)
-demDf <- filter(demDf, nchar(speech) > 30)
-trueClass <- as.factor(demDf$tag)
-
-demDfm <- dfm(demDf$speech) %>% trim(minDoc=4) %>% removeFeatures(stopwords('english')) %>% weight(type="logFreq")
-dmat <- as.matrix(demDfm)
-dim(dmat)
-length(trueClass)
-
-e1 <- cv.glmnet(dmat, y=trueClass,  family = 'binomial', alpha=0.05, type.measure='class', standardize=TRUE)
-plot(e1)
-min(e1$cvm)
-summary(e1)
-cmat <- as.matrix(coef(e1, s = "lambda.min"))
-coes <- data.frame(estimate=cmat[,1], words=row.names(cmat) ) %>% arrange(estimate)
-coDict<- data.frame(word=coes$words, co=coes[1])  %>% filter(estimate !=0) %>% filter(word!='(Intercept)')
-coDict$one<- ifelse(coDict$estimate > 0, coDict$estimate, 0)
-coDict$zero <- ifelse(coDict$estimate < 0, coDict$estimate, 0)
-wct <- data.frame(one=coDict$one, zero=coDict$zero)
-rownames(wct) <- coDict$word
-wordcloud::comparison.cloud((as.matrix(wct)),title.size=1.5,
-                            random.order=FALSE, rot.per=0.01)
-rownames(wct) <- coDict$word
-
-#newt <- "millions of jails control"
-newt <- "Sanders is a good man. When I am president I will patronize him some more."
-#newt <- demDf$speech[1]
-
-nd1 <- dfm(newt, keptFeatures = demDfm) %>% removeFeatures(stopwords('english')) %>% as.matrix
-nd1[is.nan(nd1)] = 0
-predict(e1, nd1, s = "lambda.min", type = "response")
-
-res <- predict(e1, dmat[1,,drop=FALSE], s = "lambda.min", type = "class")
-
-rdv <- docvars(presDebateCorpus2016seg)
-te <- texts(presDebateCorpus2016seg)
-bySpeakerDfm <- dfm(presDebateCorpus2016seg, groups='tag', removePunct = FALSE)
-
-
-testDf <- as.data.frame(bySpeakerDfm)
-
-dems <- subset(presDebateCorpus2016seg, tag == 'SANDERS' | tag == 'CLINTON')
-demMat <- dfm(dems, groups='tag') %>% tfidf
-wordcloud::comparison.cloud(t(as.matrix(demMat)), title.size=1.5, random.order=FALSE)
-
-reps <- subset(presDebateCorpus2016seg, tag %in% c('CRUZ', 'TRUMP'))
-reps <- corpus(collocations(texts(reps)), docvars(reps))
-repDfm <- dfm(reps, groups='tag', ngrams=c(1,2)) %>% removeFeatures(stopwords('english')) %>% tfidf
-wordcloud::comparison.cloud(t(as.matrix(repDfm)), title.size = 1, rot.per = 0, random.order=FALSE)
-
-

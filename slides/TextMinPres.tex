@@ -56,21 +56,31 @@ s\end{frame}
   \frametitle{Alternative: regularised regression, words as predictors} 
   \begin{itemize}
   \item glmnet elastic net, trigrams, bigrams and unigrams
-  \item five-class multinomial logistic model for speaker
+  \item Keep features occurring more than five times
+  \item Five-class multinomial logistic model for speaker
+  \item 3195 parameters (approx. 800 nonzero at min CV error), 1470 documents, cross. val. accuracy: 78.7\%
+  \item
   \item binomial model for party
-  \item Party 
+  \item 3195 parameters (approx. 1481 nonzero at min CV error), 1470 documents, cross. val. accuracy: 89.5\% 
   \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Party regression model}
+\begin{figure}
+\centering
+\includegraphics[width=0.7\linewidth]{../figs/partyCoefs}
+\end{figure}
 \end{frame}
 
 
 \begin{frame}
   \frametitle{Tools} 
   \begin{itemize}
-  \item General R: RStudio, dplyr, magrittr
+  \item General R: RStudio, dplyr
   \item Models: ca, glmnet
   \item Text: quanteda 
   \item Vis: shiny, wordcloud::comparison.cloud
-  \item Code available \url{https://github.com/pnulty/text-hackathon-2016}
   \end{itemize}
 \end{frame}
 
@@ -78,12 +88,8 @@ s\end{frame}
   \frametitle{thank you} 
   \begin{itemize}
   \item Thank you for your attention
-  \item Code available \url{https://github.com/pnulty/oiicss}
+  \item Code available \url{https://github.com/pnulty/text-hackathon-2016}
   \end{itemize}
 \end{frame}
-
-
-
-
 
 \end{document}

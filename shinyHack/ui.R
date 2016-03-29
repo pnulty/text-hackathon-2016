@@ -1,5 +1,5 @@
 shinyUI(fluidPage(
-    headerPanel("Live multinomial logistic glmnet predictions"),
+    headerPanel("Live text prediction"),
     sidebarPanel(
         tags$textarea(id = 'speech', placeholder = 'Type here', rows = 8,style="width:800px;", ""), width=12
     ),
