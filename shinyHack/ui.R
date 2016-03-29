@@ -1,3 +1,4 @@
+
 shinyUI(fluidPage(
     headerPanel("Live text prediction"),
     sidebarPanel(
@@ -7,10 +8,5 @@ shinyUI(fluidPage(
         fluidRow(
             splitLayout(cellWidths = c("80%", "30%"), plotOutput("mainBar"), plotOutput("partyBar"))
         )
-        
-       # plotOutput("mainBar") ,
-        #plotOutput("partyBar") 
     )
 ))
-
-

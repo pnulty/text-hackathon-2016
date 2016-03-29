@@ -93,7 +93,9 @@ table(mainDf$tag)
 #
 mainDfm <- dfm(mainDf$speech, ngrams=c(1,2,3)) %>% 
     removeFeatures(c(stopwords('english'), extra)) %>% trim(minCount = 5)
-mainMat <- as.matrix(mainDfm) # 3195 features
+mainMat <- as.matrix(mainDfm) # 3170 features
+
+save(mainDfm,file='mainDfmN123MinCount5.RData')
 
 trueClass <- as.factor(mainDf$tag)
 dim(mainMat)
@@ -105,6 +107,7 @@ eModelMain <- cv.glmnet(mainMat, y=trueClass,  family = 'multinomial', alpha=0.0
 plot(eModelMain)
 min(eModelMain$cvm)
 eModelMain$glmnet.fit$dfmat
+save(eModelMain,file='CandidateN123a.01.RData')
 
 # Error rates for different values of alpha
 # 0.00 : .226
@@ -118,7 +121,7 @@ the only economic model where everyone can climb without anyone falling. "
 # nt <- Senator Sanders is a good man. When I am president I will say more nice things about him.
 
 # need to specify 'keptFeatures' from training Dfm so that dimensions of in-sample and out-of-sample dfm match.
-nd1 <- dfm(nt, keptFeatures = mainDfm, ngrams=c(1,2)) %>% removeFeatures(c(stopwords('english'), extra)) %>% as.matrix
+nd1 <- dfm(nt, keptFeatures = mainDfm, ngrams=c(1,2,3)) %>% removeFeatures(c(stopwords('english'), extra)) %>% as.matrix
 nd1[is.nan(nd1)] = 0
 predict(eModelMain, nd1, s = "lambda.min", type = "response")
 
@@ -126,29 +129,19 @@ predict(eModelMain, nd1, s = "lambda.min", type = "response")
 # model for Democrat vs Republican
 #######
 
-#remove very short utterances (cutting at 80 characters also gives roughly balanced classes.)
-mainDf <- cbind(speech = texts(mainCorpus), docvars(mainCorpus), stringsAsFactors = FALSE)
-mainDf <- filter(mainDf, nchar(speech) > 80)
-table(mainDf$party)
-
-
-#
-# A unigram, bigram and trigram model removing standard English stopwords + the extra ones at the 
-# start of this file, removing features that occur fewer than five times overall. TF-IDF is not effective
-# because it can't be applied properly to isolated out-of-sample texts.
-#
-mainDfm <- dfm(mainDf$speech, ngrams=c(1,2,3)) %>% 
-    removeFeatures(c(stopwords('english'), extra)) %>% trim(minCount = 5)
-mainMat <- as.matrix(mainDfm)
 partyClass <- as.factor(mainDf$party)
 dim(mainMat)
 length(partyClass)
 table(partyClass)
-# Elastic net model, two-class logistic regression. Closer to ridge than lasso but some parameters will be zero
+# Elastic net model, two-class logistic regression. Closer to ridge than lasso but some coefficients will be zero
 eModelParty <- cv.glmnet(mainMat, y=partyClass,  family = 'binomial', alpha=0.01, type.measure='class', standardize=TRUE)
 plot(eModelParty)
 min(eModelParty$cvm)
-eModelParty$glmnet.fit$df
+plot(eModelParty$glmnet.fit)
+eModelParty$nzero # 2369 nonzero coefficients
+
+# save model for loading with Shiny app
+save(eModelParty,file='PartyN123a.01.RData')
 
 #
 # Comparison cloud coefficients for Dem vs Repub.
@@ -169,8 +162,8 @@ nt <- "A conservative movement committed to the cause of free enterprise, the on
 #nt <- "I believe that American families have a right to hard-working immigrants. "
 
 # need to specify 'keptFeatures' from training Dfm so that dimensions of in-sample and out-of-sample dfm match.
-nd1 <- dfm(nt, keptFeatures = mainDfm, ngrams=c(1,2)) %>% removeFeatures(c(stopwords('english'), extra)) %>% as.matrix
-nd1[is.nan(nd1)] = 0
+nd1 <- dfm(nt, keptFeatures = mainDfm, ngrams=c(1,2,3)) %>% removeFeatures(c(stopwords('english'), extra)) %>% as.matrix
+
 tmp <- predict(eModelParty, nd1, s = "lambda.min", type = "response")
 
 
