@@ -4,7 +4,7 @@
 \usepackage[all]{xy}
 
 \usepackage{hyperref}
- \title[Visual Text Analysis Hackathon]{Visual Text Analysis Hackathon}
+ \title[Visual Text Analysis Hackathon]{Visual Text Analysis and Scaling }
 \author{Paul Nulty}
 %\institute % (optional)
 %{
@@ -14,9 +14,9 @@
 %  \textit{QUANTESS} ERC Project 
 %}
  
-\date % (optional)
-{LSE \\ 
-24th March 2016}
+%\date % (optional)
+%{LSE \\ 
+%24th March 2016}
 
 
 \graphicspath{ {./graphics/} }
@@ -28,19 +28,20 @@
 s\end{frame}
 
 \begin{frame}
+	\frametitle{Supervised and Unsuperised Document Scaling}
+	\begin{itemize}
+		\item Documents converted to bag-of-words/features
+		\item Pre-processing: tokenization, entity recognition, lemmatization, stopwords removal, feature selection/weighting
+	\end{itemize}
+\end{frame}
+
+\begin{frame}
   \frametitle{Two dimensional Correspondence Analysis}
   \includegraphics[scale=0.35]{2DCA}\\
 \end{frame}
 
 
-\begin{frame}
-  \frametitle{Comparison Cloud}
- \begin{itemize}
-  \item Treat words with positive, negative weights on a dimension as two documents
-  \item Size: magnitude of difference from average rate of occurrence
-  \item See \texttt{?comparison.cloud}
-  \end{itemize}
-\end{frame}
+
 
 \begin{frame}
   \frametitle{Dimension One}
